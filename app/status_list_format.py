@@ -17,6 +17,7 @@
 ###############################################################################
 import base64, cbor2, jwt
 from datetime import datetime, timedelta
+import time
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
@@ -64,13 +65,13 @@ def jwt_format(token_status_list: IssuerStatusList, country: str, list_url: str)
     payload = {
         #"iss": "https://dev.issuer.eudiw.dev",
         "sub": list_url,
-        "iat": datetime.now(),
-        "exp": datetime.now() + timedelta(days=1),
+        "iat": int(time.time()),
+        #"exp": datetime.now() + timedelta(days=1),
         "status_list": {
             "bits": 1,
             "lst": base64.urlsafe_b64encode(
                 token_status_list.status_list.compressed()
-            ).decode("utf-8"),
+            ).decode("utf-8").rstrip("="),
         },
     }
 
@@ -113,8 +114,8 @@ def cwt_format(token_status_list: IssuerStatusList, country: str, list_url: str)
     claims = {
         #1: "issuer_example",
         2: list_url,
-        6: int(datetime.now().timestamp()),
-        4: int((datetime.now() + timedelta(days=1)).timestamp()),
+        6: int(time.time()),
+        #4: int((datetime.now() + timedelta(days=1)).timestamp()),
         65534: 3600,
         65535: cbor2.dumps(
             {"bits": 1, "lst": token_status_list.status_list.compressed()}

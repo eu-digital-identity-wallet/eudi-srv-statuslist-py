@@ -25,6 +25,7 @@ from app.list_management import (
     status_list,
     new_list,
     take_index_list,
+    update_status_list,
 )
 
 token = Blueprint("token_status_list", __name__, url_prefix="/token_status_list")
@@ -132,6 +133,9 @@ def set_index():
     path_parts = parsed_url.path.split("/")
     country = path_parts[2]
     doctype = path_parts[3]
+    id = path_parts[4]
+
+    update_status_list(country,doctype,id, index)
 
     dump_list(temp_list, country, doctype)
 

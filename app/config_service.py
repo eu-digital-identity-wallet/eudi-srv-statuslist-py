@@ -22,13 +22,13 @@ import os
 
 class ConfService:
 
-    service_url = "https://issuer.eudiw.dev/"
+    service_url = "https://dev.issuer.eudiw.dev/"
     # Token status list size (Bytes)
-    token_status_list_size = 100
+    token_status_list_size = 10000
 
-    status_list_dir = "/var/opt/status_lists"
+    status_list_dir = "/var/opt/status_lists_dev"
 
-    backup_dir = "/var/opt/status_list_backup"
+    backup_dir = "/var/opt/status_list_backup_dev"
 
     countries = {
         "FC":{

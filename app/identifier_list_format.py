@@ -18,6 +18,7 @@
 import base64
 import cbor2, jwt
 from datetime import datetime, timedelta
+import time
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
@@ -61,8 +62,8 @@ def identifier_list_jwt_format(identifier_list: dict, country: str, list_url: st
     payload = {
         "iss": cfgservice.service_url[:-1],
         "sub": list_url,
-        "iat": datetime.now(),
-        "exp": datetime.now() + timedelta(days=1),
+        "iat": int(time.time()),
+        #"exp": datetime.now() + timedelta(days=1),
         "identifier_list": identifier_list,
     }
 
@@ -106,8 +107,8 @@ def identifier_list_cwt_format(identifier_list: dict, country: str, list_url: st
     claims = {
         1: cfgservice.service_url[:-1],
         2: list_url,
-        6: int(datetime.now().timestamp()),
-        4: int((datetime.now() + timedelta(days=1)).timestamp()),
+        6: int(time.time()),
+        #4: int((datetime.now() + timedelta(days=1)).timestamp()),
         65535: cbor2.dumps(identifier_list),
     }
 
