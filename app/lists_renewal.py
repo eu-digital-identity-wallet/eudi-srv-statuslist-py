@@ -57,6 +57,10 @@ def renew_lists():
                     cfgservice.app_logger.info(f"An error occurred while processing the file: {file_path}", exc_info=True)
                     continue
                 
+                if "status_list_uri" not in temp_list or "identifier_list_uri" not in temp_list:
+                    cfgservice.app_logger.info(f"Uris don't exist: {file_path}")
+                    continue
+
                 expires_date = datetime.strptime(temp_list["expires"], "%Y-%m-%d")
 
                 if expires_date < datetime.now():
@@ -122,7 +126,10 @@ def daily_renewal():
         cfgservice.app_logger.info("Renewing Revocation Lists")
 
         
-        renew_lists()
+        try:
+            renew_lists()
+        except Exception as e:
+            print(f"Error: {e}")
 
 
 

@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://issuer.eudiw.dev"
+      "url": "https://dev.issuer.eudiw.dev"
     }
   ],
   "paths": {

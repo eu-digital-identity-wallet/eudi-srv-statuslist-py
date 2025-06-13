@@ -249,3 +249,15 @@ def generate_StatusListInfo(country,doctype, expiry_date):
     }
 
     return StatusListInfo
+
+#in case where status list is still the same
+def update_status_list(country,doctype,id, index):
+    print("\nRevoking country: ", country)
+    print("\nRevoking doctype: ", doctype)
+    print("\nRevoking ID: ", id)
+
+    if country in status_list and doctype in status_list[country] and status_list[country][doctype]["rand"] == id:
+        status_list[country][doctype]["token_status_list"].status_list.set(index, 1)
+
+        if "identifier_list" in status_list[country][doctype]:
+            status_list[country][doctype]["identifier_list"].update({str(index): 1})
