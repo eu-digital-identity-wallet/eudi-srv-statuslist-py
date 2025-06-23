@@ -67,8 +67,8 @@ class ConfService:
             "cert":"/etc/eudiw/pid-issuer/cert/PID-DS-0001_EU_cert.der"
         },
         "AV":{
-            "privkey": "/etc/eudiw/age_verification/privKey/AgeVerificationDS-001.pem",
-            "privkey_passwd": None,
+            "privKey": "/etc/eudiw/age_verification/privKey/AgeVerificationDS-001.pem",
+            "privKey_passwd": None,
             "cert": "/etc/eudiw/age_verification/cert/AgeVerificationDS-001_cert.der"
         }
     }

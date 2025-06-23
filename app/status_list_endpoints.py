@@ -45,6 +45,19 @@ def validate_country(user_input):
     
     return next(key for key in cfgservice.countries.keys() if key == user_input)
 
+def validate_expiry_date(user_input):
+    """Validate and sanitize expiry date"""
+    try:
+        parsed_date = datetime.strptime(user_input, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        raise ValueError("Invalid expiry date format. Use YYYY-MM-DD.")
+    
+    if parsed_date.date() < datetime.now().date():
+        raise ValueError("Expiry date must be in the future.")
+    
+    # Return clean date string from parsed date
+    return parsed_date.strftime("%Y-%m-%d")
+
 @token.route("/take", methods=["POST"])
 def take_index():
 
@@ -54,27 +67,23 @@ def take_index():
     print("API_Key recieved: ", api_key, flush=True)
     print("API_Key from env: ", current_app.config['API_key'], flush=True)
     if api_key != current_app.config['API_key']:
-        return jsonify({"message": "Unauthorized access"}), 401
+        return jsonify({"error": str(e)}), 401
 
     try:
         doctype = validate_doctype(request.form["doctype"])
     except ValueError:
-        return jsonify({"error": "Invalid document type"}), 400
+        return jsonify({"error": str(e)}), 400
 
     try:
         country = validate_country(request.form["country"])
     except ValueError:
-        return jsonify({"error": "Invalid country"}), 400
+        return jsonify({"error": str(e)}), 400
 
-    expiry_date = request.form["expiry_date"]
     try:
-        parsed_date = datetime.strptime(expiry_date, "%Y-%m-%d")
-    except (ValueError, TypeError):
-        return jsonify({"error": "Invalid expiry date format. Use YYYY-MM-DD."}), 400
-
-    if parsed_date.date() < datetime.now().date():
-        return jsonify({"error": "Expiry date must be in the future."}), 400
-
+        expiry_date = validate_expiry_date(request.form["expiry_date"])
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+        
     if country not in status_list:
         new_list(country,doctype)
     #if doctype not in status_list:
@@ -160,14 +169,16 @@ def set_index():
     parsed_url = urlparse(uri)
     path_parts = parsed_url.path.split("/")
 
-    country = path_parts[2]
-    if country not in cfgservice.countries:
-        return jsonify({"error": "Invalid country code"}), 400
+    try:
+        doctype = validate_doctype(path_parts[3])
+    except ValueError:
+        return jsonify({"error": str(e)}), 400
 
-    doctype = path_parts[3]
-    if doctype not in cfgservice.ALLOWED_DOCTYPES:
-        return jsonify({"error": "Invalid document type"}), 400
-
+    try:
+        country = validate_country(path_parts[2])
+    except ValueError:
+        return jsonify({"error": str(e)}), 400
+    
     id = path_parts[4]
 
     update_status_list(country,doctype,id, index)
