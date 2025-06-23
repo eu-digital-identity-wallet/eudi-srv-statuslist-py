@@ -67,8 +67,8 @@ class ConfService:
             "cert":"/etc/eudiw/pid-issuer/cert/PID-DS-0001_EU_cert.der"
         },
         "AV":{
-            "privkey": "/etc/eudiw/age_verification/privKey/AgeVerificationDS-001.pem",
-            "privkey_passwd": None,
+            "privKey": "/etc/eudiw/age_verification/privKey/AgeVerificationDS-001.pem",
+            "privKey_passwd": None,
             "cert": "/etc/eudiw/age_verification/cert/AgeVerificationDS-001_cert.der"
         }
     }
@@ -116,8 +116,12 @@ class ConfService:
         backupCount=backup_count,
     )
 
+    
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
     log_handler_info.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
 
     app_logger = logging.getLogger("revocation_app_logger")
     app_logger.addHandler(log_handler_info)
+    app_logger.addHandler(console_handler)
     app_logger.setLevel(logging.INFO)
