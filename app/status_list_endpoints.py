@@ -31,6 +31,12 @@ from app.list_management import (
 token = Blueprint("token_status_list", __name__, url_prefix="/token_status_list")
 from app.config_service import ConfService as cfgservice
 
+def validate_doctype(user_input):
+    """Validate doctype and return the allowed value"""
+    if user_input not in cfgservice.ALLOWED_DOCTYPES:
+        raise ValueError("Invalid document type")
+    
+    return next(dt for dt in cfgservice.ALLOWED_DOCTYPES if dt == user_input)
 
 @token.route("/take", methods=["POST"])
 def take_index():
@@ -43,10 +49,10 @@ def take_index():
     if api_key != current_app.config['API_key']:
         return jsonify({"message": "Unauthorized access"}), 401
 
-    doctype_input = request.form["doctype"]
-    if doctype_input not in cfgservice.ALLOWED_DOCTYPES:
+    try:
+        doctype = validate_doctype(request.form["doctype"])
+    except ValueError:
         return jsonify({"error": "Invalid document type"}), 400
-    doctype = doctype_input
 
     country = request.form["country"]
     if country not in cfgservice.countries:
