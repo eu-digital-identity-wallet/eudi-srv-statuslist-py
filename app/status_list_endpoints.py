@@ -35,7 +35,7 @@ from app.config_service import ConfService as cfgservice
 @token.route("/take", methods=["POST"])
 def take_index():
 
-    #cfgservice.app_logger.info("Take Request, header: " + str(request.headers) + ", payload: " + str(request.form.to_dict()))
+    cfgservice.app_logger.info("Take Request, header:\n" + str(request.headers) + ", payload:\n" + str(request.form.to_dict()))
 
     api_key = request.headers.get("X-Api-Key")
     print("API_Key recieved: ", api_key, flush=True)
@@ -43,9 +43,10 @@ def take_index():
     if api_key != current_app.config['API_key']:
         return jsonify({"message": "Unauthorized access"}), 401
 
-    doctype = request.form["doctype"]
-    if doctype not in cfgservice.ALLOWED_DOCTYPES:
+    doctype_input = request.form["doctype"]
+    if doctype_input not in cfgservice.ALLOWED_DOCTYPES:
         return jsonify({"error": "Invalid document type"}), 400
+    doctype = doctype_input
 
     country = request.form["country"]
     if country not in cfgservice.countries:
