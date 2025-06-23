@@ -38,6 +38,13 @@ def validate_doctype(user_input):
     
     return next(dt for dt in cfgservice.ALLOWED_DOCTYPES if dt == user_input)
 
+def validate_country(user_input):
+    """Validate country code and return clean value"""
+    if user_input not in cfgservice.countries:
+        raise ValueError("Invalid country")
+    
+    return next(key for key in cfgservice.countries.keys() if key == user_input)
+
 @token.route("/take", methods=["POST"])
 def take_index():
 
@@ -54,9 +61,10 @@ def take_index():
     except ValueError:
         return jsonify({"error": "Invalid document type"}), 400
 
-    country = request.form["country"]
-    if country not in cfgservice.countries:
-        return jsonify({"error": "Invalid country code"}), 400
+    try:
+        country = validate_country(request.form["country"])
+    except ValueError:
+        return jsonify({"error": "Invalid country"}), 400
 
     expiry_date = request.form["expiry_date"]
     try:
