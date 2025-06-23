@@ -6,6 +6,6 @@ cwt==2.3.2
 pyjwt==2.8.0
 cbor2==5.6.4
 werkzeug==2.3.7
-token-status-list==0.1.0a2.dev0
+token-status-list==0.1.0a2.dev1
 python-dotenv==1.0.1
 flask-swagger-ui==4.11.1
