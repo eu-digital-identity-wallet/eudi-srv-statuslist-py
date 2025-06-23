@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 ###############################################################################
+from datetime import datetime
 from urllib.parse import unquote, urlparse
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
@@ -24,7 +25,6 @@ from app.list_management import (
     load_list,
     status_list,
     new_list,
-    take_index_list,
     update_status_list,
 )
 
@@ -44,8 +44,21 @@ def take_index():
         return jsonify({"message": "Unauthorized access"}), 401
 
     doctype = request.form["doctype"]
+    if doctype not in cfgservice.ALLOWED_DOCTYPES:
+        return jsonify({"error": "Invalid document type"}), 400
+
     country = request.form["country"]
+    if country not in cfgservice.countries:
+        return jsonify({"error": "Invalid country code"}), 400
+
     expiry_date = request.form["expiry_date"]
+    try:
+        parsed_date = datetime.strptime(expiry_date, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid expiry date format. Use YYYY-MM-DD."}), 400
+
+    if parsed_date.date() < datetime.now().date():
+        return jsonify({"error": "Expiry date must be in the future."}), 400
 
     if country not in status_list:
         new_list(country,doctype)
@@ -131,8 +144,15 @@ def set_index():
 
     parsed_url = urlparse(uri)
     path_parts = parsed_url.path.split("/")
+
     country = path_parts[2]
+    if country not in cfgservice.countries:
+        return jsonify({"error": "Invalid country code"}), 400
+
     doctype = path_parts[3]
+    if doctype not in cfgservice.ALLOWED_DOCTYPES:
+        return jsonify({"error": "Invalid document type"}), 400
+
     id = path_parts[4]
 
     update_status_list(country,doctype,id, index)
