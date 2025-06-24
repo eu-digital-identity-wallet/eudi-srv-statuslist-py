@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 ###############################################################################
+from datetime import datetime
 from urllib.parse import unquote, urlparse
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
@@ -24,28 +25,65 @@ from app.list_management import (
     load_list,
     status_list,
     new_list,
-    take_index_list,
+    update_status_list,
 )
 
 token = Blueprint("token_status_list", __name__, url_prefix="/token_status_list")
 from app.config_service import ConfService as cfgservice
 
+def validate_doctype(user_input):
+    """Validate doctype and return the allowed value"""
+    if user_input not in cfgservice.ALLOWED_DOCTYPES:
+        raise ValueError("Invalid document type")
+    
+    return next(dt for dt in cfgservice.ALLOWED_DOCTYPES if dt == user_input)
+
+def validate_country(user_input):
+    """Validate country code and return clean value"""
+    if user_input not in cfgservice.countries:
+        raise ValueError("Invalid country")
+    
+    return next(key for key in cfgservice.countries.keys() if key == user_input)
+
+def validate_expiry_date(user_input):
+    """Validate and sanitize expiry date"""
+    try:
+        parsed_date = datetime.strptime(user_input, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        raise ValueError("Invalid expiry date format. Use YYYY-MM-DD.")
+    
+    if parsed_date.date() < datetime.now().date():
+        raise ValueError("Expiry date must be in the future.")
+    
+    # Return clean date string from parsed date
+    return parsed_date.strftime("%Y-%m-%d")
 
 @token.route("/take", methods=["POST"])
 def take_index():
 
-    #cfgservice.app_logger.info("Take Request, header: " + str(request.headers) + ", payload: " + str(request.form.to_dict()))
+    cfgservice.app_logger.info("Take Request, header:\n" + str(request.headers) + ", payload:\n" + str(request.form.to_dict()))
 
     api_key = request.headers.get("X-Api-Key")
     print("API_Key recieved: ", api_key, flush=True)
     print("API_Key from env: ", current_app.config['API_key'], flush=True)
     if api_key != current_app.config['API_key']:
-        return jsonify({"message": "Unauthorized access"}), 401
+        return jsonify({"error": str(e)}), 401
 
-    doctype = request.form["doctype"]
-    country = request.form["country"]
-    expiry_date = request.form["expiry_date"]
+    try:
+        doctype = validate_doctype(request.form["doctype"])
+    except ValueError:
+        return jsonify({"error": str(e)}), 400
 
+    try:
+        country = validate_country(request.form["country"])
+    except ValueError:
+        return jsonify({"error": str(e)}), 400
+
+    try:
+        expiry_date = validate_expiry_date(request.form["expiry_date"])
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+        
     if country not in status_list:
         new_list(country,doctype)
     #if doctype not in status_list:
@@ -130,8 +168,20 @@ def set_index():
 
     parsed_url = urlparse(uri)
     path_parts = parsed_url.path.split("/")
-    country = path_parts[2]
-    doctype = path_parts[3]
+
+    try:
+        doctype = validate_doctype(path_parts[3])
+    except ValueError:
+        return jsonify({"error": str(e)}), 400
+
+    try:
+        country = validate_country(path_parts[2])
+    except ValueError:
+        return jsonify({"error": str(e)}), 400
+    
+    id = path_parts[4]
+
+    update_status_list(country,doctype,id, index)
 
     dump_list(temp_list, country, doctype)
 
