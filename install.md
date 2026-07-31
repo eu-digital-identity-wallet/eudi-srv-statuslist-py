@@ -26,13 +26,13 @@ To run the Revocation service, please follow these simple steps (some of which m
 1. Clone the Revocation service repository:
 
     ```shell
-    git clone git@github.com:eu-digital-identity-wallet/eudi-srv-web-issuing-eudiw-py.git
+    git clone git@github.com:eu-digital-identity-wallet/eudi-srv-statuslist-py.git
     ```
 
 2. Create a `.venv` folder within the cloned repository:
 
     ```shell
-    cd eudi-srv-web-issuing-eudiw-py
+    cd eudi-srv-statuslist-py
     python3 -m venv .venv
     ```
 
@@ -58,7 +58,7 @@ To run the Revocation service, please follow these simple steps (some of which m
     ```
 
 
-5. Install Flask, gunicorn and other dependencies in virtual environment
+5. Install Flask and other dependencies in the virtual environment
 
     ```shell
     pip install -r app/requirements.txt
