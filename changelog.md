@@ -5,70 +5,68 @@
 _21 Oct 2026_
 
 ### Added
-- `.github/workflows/`: self-contained `semgrep.yml` (rules in `.semgrep/`), `pipeline.yml` (Docker image for amd64 + arm64 pushed to `ghcr.io/eu-digital-identity-wallet/eudi-srv-statuslist-py` on `main`, `branch-*` and `v*` tags; secret `GHCR_KEY`), `README.md` (workflows, secrets, one-time SonarCloud setup) and `.github/CODEOWNERS`, as in the issuer backend.
-- `app/log_utils.py`: `safe()` escapes CR / LF and control characters and bounds request values written to the log.
-- YAML configuration (`app/config.py`), read from `STATUS_LIST_CONFIG_PATH` (default `/etc/statuslist_config/config_statuslist.yaml`), with a `variables` section for `${name}` substitution, as in the issuer backend. Every key is described in `app/config_statuslist_example.yaml`; all but `api_key` and `countries` have defaults (the values that were hard-coded).
-- `Dockerfile` (Python 3.13, non-root UID 10001, only `app/` copied), `.dockerignore` (no keys, configuration or tests) and `docker-compose.yml` (host port 5002, configuration and keys mounted read-only, list, backup and log directories mounted from the host), as in the issuer backend. See "Run with Docker" in `install.md`.
-- Unit tests (`tests/`, 99% coverage of `app/`), `requirements-dev.txt`, `pytest.ini`, `pyproject.toml` (coverage, `fail_under = 80`) and `.env.test`; `sonar.yml` runs them with coverage, as in the issuer backend. Published lists are decoded strictly (`tests/strict.py`: no bytes after the CBOR item, JWT signature verified), and `tests/test_concurrency.py` runs concurrent takes, revocations, renewals and list rollovers, and two `flask run` processes on the same directories. `tests/test_properties.py` (Hypothesis, in `requirements-dev.txt`) checks the URI and index parsers, configuration variables, the bit encoding and the allocator on generated input, and drives the whole API against a model with 16-entry lists (`HYPOTHESIS_PROFILE=hunt` for ten times more examples). `tests/test_regressions.py` holds one regression test per bug found by the bug hunt (`plans/2026-10-21-bug-hunt-report.md`); a new open bug may be added there as a strict `xfail`.
-- `flask renew-lists`: renews (re-signs) every list at once and reports the lists it could not renew; exits with 1 if any. Run it after upgrading to repair lists damaged by earlier versions.
-- `status_list_dir/state/<CC>/<doctype>/current.json`: the list new indices are taken from, so restarts and other processes keep using it; `.lock` files there serialize the changes. See "Serving the lists" in `install.md` (with a sample nginx configuration) for what may be published.
-- `POST /token_status_list/take/batch` and `POST /token_status_list/set/batch` (JSON bodies, `X-Api-Key`, see `app/static/swagger.json`). `take/batch` takes `count` indices of one country, doctype and expiry date (`{"items": [...]}`, each as `/take` returns it; the indices may span list rollovers). `set/batch` revokes every `{"uri", "idx" and / or "id"}` of `refs`, across lists, countries and doctypes, and answers `{"revoked": <distinct entries>}`. Both are all or nothing: every input is checked first, and an error names the failing ref (`refs[3]: Unknown list`). `set/batch` signs each list once per request, not once per entry, and takes the country / doctype locks in sorted order. `batch_max_size` (default 1000) caps `count` and `refs` (413 beyond it, and for bodies over 1 MiB); `list_management.take_many()` enforces the same bound itself. `/take` and `/set` share the same code; a missing `/take` field is now answered `{"error": "Missing <field>"}`.
-- `allowed_doctypes`: `wrprc` and `oauth-client-attestation+jwt` are allowed by default, next to `key-attestation+jwt`.
-- `debug` (default `false`): Flask debug mode. Before, it was always on.
-- `renewal.hours` (default `[0, 12]`): when the lists are re-signed; `status_list_ttl` (default 3600): the time to live of the signed lists. Both were hard-coded.
-- `status_list_validity` (default 86400 seconds): every signed list (status list JWT and CWT, identifier list CWT) has `exp` = `iat` + `status_list_validity` and `ttl` = `status_list_ttl` (draft-12 section 13.7). Before, none had `exp`, and only the status list CWT had `ttl`. It must be more than the longest time between two `renewal.hours` plus one hour, so a list is re-signed before it expires.
-- `max_expiry_days` (default 3650): `/take` and `/take/batch` reject an `expiry_date` further from today (400). Before, `9999-12-31` was accepted, which kept the list and its backups forever.
-- `logging.path` (default `/var/log/status_lists_dev/status_lists.log`), `logging.log_level` (default `INFO`) and `logging.backup_count` (default 7). Every log record has CR / LF escaped and traceback lines indented; the Flask and Werkzeug logs go to the same file.
+- `.github/workflows/`: `semgrep.yml`, `pipeline.yml` (image on `main`, `branch-*` and `v*` tags), `README.md`, and `.github/CODEOWNERS`.
+- `app/log_utils.py`: `safe()` escapes and bounds logged request values.
+- YAML configuration (`app/config.py`, `STATUS_LIST_CONFIG_PATH`) with `variables`; keys documented in `app/config_statuslist_example.yaml`.
+- `Dockerfile` (non-root), `.dockerignore` and `docker-compose.yml`.
+- Unit, concurrency, property (Hypothesis) and regression tests (99% coverage), run by `sonar.yml`.
+- `flask renew-lists`: re-signs every list and reports the ones it could not renew.
+- `state/<CC>/<doctype>/current.json`: the current list survives restarts and is shared between processes.
+- `POST /token_status_list/take/batch` and `/set/batch` (all or nothing, capped by `batch_max_size`, default 1000).
+- `allowed_doctypes`: `wrprc` and `oauth-client-attestation+jwt` by default.
+- `debug` (default `false`); Flask debug mode was always on.
+- `renewal.hours` (default `[0, 12]`) and `status_list_ttl` (default 3600); both were hard-coded.
+- `status_list_validity` (default 86400 s): signed lists carry `exp` and `ttl` (draft-12 section 13.7).
+- `max_expiry_days` (default 3650) bounds `expiry_date`.
+- `logging.path`, `logging.log_level` and `logging.backup_count`.
 
 ### Changed
-- `gitleaks.yml`, `dependencycheck.yml` and `sonar.yml` no longer call the `eu-digital-identity-wallet/eudi-infra-ci` reusable workflows (which needed `DOJO_TOKEN`, `DOJO_URL` and `NVD_API_KEY`); they run the scans themselves, as in the issuer backend. `sonar.yml` needs `SONAR_TOKEN`; the others need no secrets.
-- The gitleaks configuration moved from `security/gitleaks/gitleaks.toml` to `gitleaks/gitleaks.toml`.
-- `app/config_service.py` (`ConfService`) is gone: the service URL, directories, list size, countries and allowed doctypes come from the YAML configuration. The `API_key` environment variable / `.env` file is replaced by `api_key`, and `python-dotenv` is no longer used.
-- `countries.<CC>`: `private_key_path`, optional `private_key_password` and `certificate_path` (DER or PEM). Keys and certificates are loaded once at start-up, and a missing or unreadable one stops the service; before, they were read from disk for every list signed. In the example configuration `FC`, `EU` and `LU` lists are signed with the LU document signer.
-- Dependencies upgraded to current releases: Flask 3.1.3, Werkzeug 3.1.9, flask-swagger-ui 5.34.0, PyJWT 2.15.1, cbor2 6.1.5, cryptography 50.0.2 (now pinned; it came in through `cwt`), PyYAML 6.0.3. The unused `requests`, `flask_api` and `cwt` are removed, and so is `flask-cors` (see Security). `pip-audit` reports no known vulnerabilities; before, it reported advisories for cryptography, PyJWT, Werkzeug, cbor2, flask-cors, requests and Flask.
-- The `token-status-list` package (an unmaintained 0.1.0 alpha written for draft-02) is replaced by `app/status_list.py`, which keeps only the parts the service uses: the status bits and the random index allocator. `full_list.json` keeps its format, so existing lists load unchanged. The JWT and CWT take `bits` from the list instead of always writing 1.
-- `README.md` references [draft-ietf-oauth-status-list-12](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-status-list-12) instead of draft-02.
-- Debug `print()` calls (which printed every certificate and status list response) are log records now.
-- The lists are kept on disk only: every `/take`, `/set` and renewal reads the list, changes it and writes it back under a lock per country and doctype (`fcntl.flock` plus a thread lock), and every file is replaced atomically (temporary file + `os.replace`). Before, each process held its own in-memory copy of the current lists and rewrote the files in place, so several processes (or a restart) worked on diverging copies. Several containers or `flask run` processes may now serve the same `status_list_dir`; only one of them renews at a time (`state/renewal.lock`). A `/take` on an existing list only updates its `full_list.json`: the statuses do not change, so the published JWT / CWT are no longer re-signed on every `/take` (they are on `/set` and at every renewal).
-- The identifier list `id` handed out by `/take` is a random string (32 hex characters, never all digits) instead of the index again (`str(idx)`), as ISO/IEC 18013-5 recommends (unique per MSO, random). `full_list.json` stores each index's id (`ids`), and revoking a token by `idx` or by `id` sets its status bit and lists its id. Tokens taken before keep `str(idx)` as id, so existing lists and credentials keep working; the issuer needs no change (it handles the id as an opaque string). `/get`, `/set` and `/set/batch` take `idx`, `id` or both, with either list URI: an `id` is looked up instead of read as a number (404 `Unknown identifier` when no entry has it), and `idx` and `id` naming different entries are rejected with 400. Revoking an index that `/take` never handed out is 404 `Unknown entry` (it published a meaningless id).
-- `/token_status_list/get` and `/set` errors are JSON (`{"error": ...}`) everywhere, including 404 and 500; an unknown list is 404. A wrong or missing `X-Api-Key` is 401 `{"message": "Unauthorized access"}` on `/take`, `/set` and both `/batch` endpoints (before, `/take` answered `{"error": "Incorrect API key"}`).
-- `/get` (`0` / `1`) and `/set` (`Status Changed`) answer `text/plain` instead of `text/html`; the bodies are unchanged.
-- `idx`, and `status` in `/set`, must be plain decimal numbers (ASCII digits, no sign, spaces or leading zeros); `status` must be `1`. Before, `int()` accepted ` 5`, `+5`, `05`, non-ASCII digits and `1_0`, which named index 10. In `/set/batch` a JSON integer is accepted too.
-- A list `uri` must be spelled as `/take` returned it: it is no longer percent-decoded (`F%43` for `FC` named the same list), and a trailing newline is rejected (400 instead of 404).
-- Expiry dates are UTC days, in `/take` and in renewal (before, the server's local date).
-- The random index allocator picks uniformly among the free indices (draft-12 section 12.5.1). Before, it picked a random byte and took the first free entry after it, so the indices following runs of taken ones were up to 50 times more likely.
-- The CWT status list and identifier list no longer carry the fixed unprotected `kid` `"1"`; `x5chain` identifies the key (draft-12 section 11.3).
-- `app/static/swagger.json` documents every status code and its body (400, 401, 404, 413, 500), the `text/plain` bodies of `/get` and `/set`, and constrains the parameters (`status` 1, non-negative `idx`, `expiry_date` a date, `id` 1 to 64 characters). Its `servers` entry (`https://dev.issuer.eudiw.dev`) is removed, so it describes the host serving it.
-- `token_status_list_size` is documented as a number of entries (it always was; the comment said bytes).
-
-### Security
-- `/token_status_list/take` logged the full request headers, `X-Api-Key` included. It now logs only the form payload, through `safe()`.
-- The service refuses to start when `api_key` is missing, shorter than 32 characters or a known placeholder (`test`, `secret`, ...). `X-Api-Key` is compared in constant time.
-- `/get` and `/set` joined the `uri` path to `status_list_dir` unchecked (`../` read other `full_list.json` files) and accepted any host. The `uri` must now be `<service_url>token_status_list|identifier_list/<CC>/<doctype>/<id>` with a configured country, an allowed doctype and a list id; otherwise 400.
-- CORS allowed every origin. Only the issuer calls the service (server to server), so `flask-cors` is removed and no CORS headers are sent.
-- The log file defaulted to `/tmp/status_lists_dev/`, under a world-writable directory; the default is now `/var/log/status_lists_dev/status_lists.log` (`Dockerfile`, `docker-compose.yml` and `install.md` follow). Set `logging.path` to keep the old location.
-- Every file the service wrote was world-readable (`0644`). Only the published `token_status_list.jwt`, `token_status_list.cwt` and `identifier_list.cwt` are now; `full_list.json`, `state/<CC>/<doctype>/current.json` and the backups are `0600`.
-- `/set` with `idx=-1` revoked the last entry of the list (another credential). Indices outside the list are rejected with 400 (before, 500 for those past the end).
-- Request bodies are limited to 1 MiB on every endpoint (413); only the batch endpoints had a limit. `/take` read the whole form body, of any size, before checking `X-Api-Key`: an unauthenticated 300 MiB upload was spooled to disk. The key is now checked first.
-- A failed `X-Api-Key` check is logged on every endpoint (before, only on `/take`).
+- `gitleaks.yml`, `dependencycheck.yml` and `sonar.yml` run the scans themselves instead of the `eudi-infra-ci` reusable workflows.
+- The gitleaks configuration moved to `gitleaks/gitleaks.toml`.
+- `ConfService` and the `API_key` environment variable are replaced by the YAML configuration.
+- `countries.<CC>` keys and certificates are loaded once at start-up.
+- Dependencies upgraded (`pip-audit` clean); unused `requests`, `flask_api`, `cwt` and `flask-cors` removed.
+- `token-status-list` (draft-02 alpha) is replaced by `app/status_list.py`; `full_list.json` keeps its format.
+- `README.md` references draft-ietf-oauth-status-list-12 instead of draft-02.
+- `print()` calls are log records.
+- Lists live on disk only, under per-list locks with atomic writes, so several processes can share `status_list_dir`.
+- `/take` no longer re-signs the published lists.
+- Identifier list `id`s are random (ISO/IEC 18013-5); older tokens keep `str(idx)`. `/get` and `/set` take `idx`, `id` or both.
+- `/get` and `/set` errors are JSON; a bad `X-Api-Key` is 401 on every endpoint.
+- `/get` and `/set` answer `text/plain`.
+- `idx` and `status` must be plain decimal numbers; `status` must be `1`.
+- A list `uri` must be spelled as `/take` returned it.
+- Expiry dates are UTC days.
+- The index allocator picks uniformly among free indices (draft-12 section 12.5.1).
+- CWT lists no longer carry the fixed `kid` `"1"` (draft-12 section 11.3).
+- `swagger.json` documents every status code and constrains the parameters.
+- `token_status_list_size` is documented as a number of entries.
+- `flask-cors` removed: only the issuer calls the service.
+- The log file defaults to `/var/log/status_lists_dev/` instead of world-writable `/tmp`.
+- Only the published lists are world-readable; other files are `0600`.
+- Request bodies are limited to 1 MiB on every endpoint, and `X-Api-Key` is checked before the body is read.
+- A failed `X-Api-Key` check is logged on every endpoint.
 
 ### Fixed
-- Concurrent `/set` requests (and `/set` during a `/take`) corrupted the published lists and lost revocations (upstream eu-digital-identity-wallet/eudi-srv-web-issuing-eudiw-py#191): a shorter rewrite left the tail of the previous file behind, so the CWT had bytes after the COSE_Sign1 and the JWT an over-long signature, and a `/set` could read a half-written `full_list.json` (500, revocation lost). Writes are now atomic and serialized.
-- After a `/set`, every later `/take` for that list but the first failed with a 500 (`identifier_list_cwt_format()` turned the in-memory identifiers into bytes) until a restart, and the issuer issued those credentials without a status; the failing write also left an empty `identifier_list.cwt`.
-- When a list ran out of indices, every other in-memory list (all countries and doctypes) was dropped, and concurrent `/take` calls got 500s or an index of one list with the URI of another (two credentials on one entry). Only the full list is replaced now, and the index and URIs always belong to the same list.
-- New lists shared one module-level identifier dict, and a new country entry replaced that country's other doctypes.
-- A list that had handed out a single index was never renewed: its first `full_list.json` had no list URIs. The URIs are written with the list, and older lists get them back when loaded.
-- Renewal copied `identifier_list.jwt`, which is never written, and stopped at the first identifier list, so the lists after it were not re-signed; one failing list no longer stops the others either.
-- A second process (or a restart) rewrote a list from its own stale copy on the next `/take`, undoing the revocations made elsewhere; a restart also abandoned the free entries of the current lists.
-- `/get` on an identifier list URI always answered 0, even for a revoked entry.
-- `urn:eu.europa.ec.eudi:learning:credential:1` (learning credential SD-JWT) and `org.iso.7367.2.1.mVC` (mVC mdoc) were not allowed doctypes, so the issuer issued them without a status list entry.
-- `install.md` cloned the issuer backend repository instead of this one.
-- `urn:eu.europa.ec.eudi:tax:1` and `urn:eu.europa.ec.eudi:tax:1:1` were not allowed: a missing comma joined them into one doctype.
-- `gitleaks/gitleaks.toml`: the `Env Var` rule had no `id`, so current gitleaks refused to load the config. The rule is now `env-var`.
-- The index allocator trusted the stored `num_allocated`; a wrong value made `/take` loop forever on a full list, or start a new list while the current one still had free indices. It is now counted from the allocation map.
-- A `full_list.json` whose list was not valid ZLIB raised an unhandled `zlib.error` instead of being reported as an unreadable list (`/get` and `/set` answer 500 `List unavailable`, renewal reports it as corrupt). A deeply nested `full_list.json` is reported the same way (it raised `RecursionError`).
-- Renewal removed a list on the expiry date of its credentials, while they were still valid that day: `/get` and `/set` answered 404 and they could not be revoked. A list is now kept until the day after its latest expiry date.
-- A private key that is not EC P-256, or a certificate that does not match the private key, was accepted at start-up; every list was then unverifiable, or every signature failed with 500. The service now refuses to start, and logs a warning for a certificate that is expired or not yet valid.
-- Invalid numeric settings were only found at run time (a CWT `ttl` of 0, 500 on every first `/take`, 413 on every batch, a renewal thread that died silently). `token_status_list_size`, `status_list_ttl`, `batch_max_size`, `max_expiry_days` and `status_list_validity` must be positive integers and `renewal.hours` distinct hours from 0 to 23, or the service refuses to start; an error in the renewal loop is logged and no longer stops it.
-- A deeply nested JSON body on `/take/batch` or `/set/batch` answered 500 (`RecursionError`); it is 400. A malformed body (bad chunked framing) is 400, not 500 with a logged traceback.
-- 405 responses had no `Allow` header: the JSON error handler dropped the headers of the HTTP error.
+- `/take` logged `X-Api-Key`.
+- A missing, short or placeholder `api_key` was accepted; the key is compared in constant time.
+- `/get` and `/set` allowed path traversal through `uri`.
+- `/set` with `idx=-1` revoked another credential.
+- Concurrent `/set` requests corrupted the published lists and lost revocations (upstream eudi-srv-web-issuing-eudiw-py#191).
+- After a `/set`, later `/take` calls on that list failed with 500 until a restart.
+- A full list dropped every other in-memory list, and concurrent `/take` calls could share one entry.
+- New lists shared one identifier dict, and a new country entry replaced its other doctypes.
+- A list that had handed out one index was never renewed.
+- Renewal stopped at the first identifier list or the first failing list.
+- A second process or a restart undid revocations made elsewhere.
+- `/get` on an identifier list always answered 0.
+- Learning credential, mVC and tax doctypes were not allowed.
+- `install.md` cloned the issuer backend repository and listed gunicorn.
+- `gitleaks/gitleaks.toml` failed to load.
+- A wrong stored `num_allocated` made `/take` loop forever or start a list too early.
+- Corrupt or deeply nested `full_list.json` raised unhandled errors.
+- Renewal removed a list on its credentials' last valid day.
+- Wrong key types and mismatched certificates were accepted at start-up.
+- Invalid numeric settings were only found at run time.
+- Deeply nested or malformed batch bodies answered 500 instead of 400.
+- 405 responses had no `Allow` header.
