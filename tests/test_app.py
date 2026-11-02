@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 import pytest
 
@@ -35,9 +36,11 @@ class TestCreateApp:
         spec = client.get("/token_status_list/static/swagger.json").json
         assert "servers" not in spec  # relative to the host serving it
         routes = {
-            (rule.rule, method.lower())
+            (re.sub(r"<(\w+)>", r"{\1}", rule.rule), method.lower())
             for rule in client.application.url_map.iter_rules()
-            if rule.rule.startswith("/token_status_list/") and "static" not in rule.rule and "swagger" not in rule.rule
+            if rule.rule.startswith(("/token_status_list/", "/identifier_list/"))
+            and "static" not in rule.rule
+            and "swagger" not in rule.rule
             for method in rule.methods - {"HEAD", "OPTIONS"}
         }
         documented = {(path, method) for path, item in spec["paths"].items() for method in item}
@@ -48,6 +51,8 @@ class TestCreateApp:
             "/token_status_list/take/batch": {"200", "400", "401", "413", "500"},
             "/token_status_list/set": {"200", "400", "401", "404", "413", "500"},
             "/token_status_list/set/batch": {"200", "400", "401", "404", "413", "500"},
+            "/token_status_list/{country}/{doctype}/{list_id}": {"200", "304", "404"},
+            "/identifier_list/{country}/{doctype}/{list_id}": {"200", "304", "404"},
         }
         for path, method in routes:
             operation = spec["paths"][path][method]

@@ -153,7 +153,7 @@ def take_many(country: str, doctype: str, expiry_date: str, count: int) -> list[
 def _is_new(entry: dict[str, Any]) -> bool:
     """Whether the list has no published files yet."""
     token_dir = storage.list_dir(TOKEN_LIST, entry["country"], entry["doctype"], entry["rand"])
-    return not (token_dir / "token_status_list.jwt").exists()
+    return not (token_dir / storage.STATUS_JWT).exists()
 
 
 def _new_identifier() -> str:

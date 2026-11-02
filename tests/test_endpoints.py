@@ -7,6 +7,7 @@ import os
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse
 
+import jwt
 import pytest
 from flask import wrappers
 
@@ -176,6 +177,79 @@ class TestGet:
         (outside / FULL_LIST).write_text(json.dumps({"token_status_list": None, "identifier_list": {"1": 1}}))
         response = get(client, "https://statuslist.test/identifier_list/../../outside", 1)
         assert response.status_code in (400, 404)
+
+
+class TestPublishedLists:
+    """GET <service_url>token_status_list/... and identifier_list/...: the signed lists."""
+
+    def published(self, configuration, uri, name):
+        with open(configuration["status_list_dir"] + urlparse(uri).path + "/" + name, "rb") as f:
+            return f.read()
+
+    def test_status_list_jwt_by_default(self, client, headers, configuration):
+        uri = take(client, headers).json["status_list"]["uri"]
+        response = client.get(urlparse(uri).path)
+        assert response.status_code == 200
+        assert response.mimetype == "application/statuslist+jwt"
+        assert response.data == self.published(configuration, uri, "token_status_list.jwt")
+        assert jwt.decode(response.data, options={"verify_signature": False})["sub"] == uri
+        assert "Accept" in response.vary
+        assert response.headers["Access-Control-Allow-Origin"] == "*"
+        assert response.cache_control.no_cache
+
+    @pytest.mark.parametrize("accept", ["application/statuslist+cwt", "application/json, application/statuslist+cwt;q=0.9"])
+    def test_status_list_cwt_when_accepted(self, client, headers, configuration, accept):
+        uri = take(client, headers).json["status_list"]["uri"]
+        response = client.get(urlparse(uri).path, headers={"Accept": accept})
+        assert response.status_code == 200
+        assert response.mimetype == "application/statuslist+cwt"
+        assert response.data == self.published(configuration, uri, "token_status_list.cwt")
+        assert "Accept" in response.vary
+
+    def test_identifier_list_cwt(self, client, headers, configuration):
+        uri = take(client, headers).json["identifier_list"]["uri"]
+        response = client.get(urlparse(uri).path)
+        assert response.status_code == 200
+        assert response.mimetype == "application/identifierlist+cwt"
+        assert response.data == self.published(configuration, uri, "identifier_list.cwt")
+        assert response.headers["Access-Control-Allow-Origin"] == "*"
+
+    def test_not_modified_until_revoked(self, client, headers):
+        body = take(client, headers).json["status_list"]
+        path = urlparse(body["uri"]).path
+        etag = client.get(path).headers["ETag"]
+        assert client.get(path, headers={"If-None-Match": etag}).status_code == 304
+        revoke(client, headers, body["uri"], body["idx"])
+        response = client.get(path, headers={"If-None-Match": etag})
+        assert response.status_code == 200
+        assert response.headers["ETag"] != etag
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            f"/token_status_list/XX/{PID}/{UNKNOWN_ID}",
+            f"/token_status_list/FC/unknown.doctype/{UNKNOWN_ID}",
+            f"/token_status_list/FC/{PID}/not-a-list-id",
+            f"/token_status_list/FC/{PID}/{UNKNOWN_ID}",
+            f"/identifier_list/FC/{PID}/{UNKNOWN_ID}",
+            f"/token_status_list/FC/{PID}/..",
+            f"/token_status_list/FC/{PID}/%2E%2E",
+        ],
+    )
+    def test_unknown_list(self, client, path):
+        response = client.get(path)
+        assert response.status_code == 404
+        assert response.is_json
+
+    @pytest.mark.parametrize("suffix", ["/full_list.json", "/token_status_list.jwt", "/%2Ffull_list.json"])
+    def test_only_the_signed_list_is_served(self, client, headers, suffix):
+        path = urlparse(take(client, headers).json["status_list"]["uri"]).path
+        assert client.get(path + suffix).status_code == 404
+
+    def test_state_is_not_served(self, client, headers):
+        take(client, headers)
+        assert client.get(f"/token_status_list/state/FC/{PID}").status_code == 404
+        assert client.get(f"/token_status_list/../state/FC/{PID}/current.json").status_code == 404
 
 
 class TestSet:

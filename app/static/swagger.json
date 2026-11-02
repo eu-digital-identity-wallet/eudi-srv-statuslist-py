@@ -406,6 +406,145 @@
           }
         }
       }
+    },
+    "/token_status_list/{country}/{doctype}/{list_id}": {
+      "get": {
+        "summary": "Get Status List",
+        "operationId": "getStatusListToken",
+        "description": "The signed status list at the 'status_list.uri' /take returned (draft-ietf-oauth-status-list-12 section 8): a JWT, or a CWT when 'Accept' contains 'application/statuslist+cwt'. Answers carry 'Vary: Accept', 'ETag', 'Last-Modified', 'Cache-Control: no-cache' and 'Access-Control-Allow-Origin: *'. Not authenticated.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Country code of the list, as in the URI /take returned."
+          },
+          {
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Document type of the list, as in the URI /take returned."
+          },
+          {
+            "in": "path",
+            "name": "list_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "List id, as in the URI /take returned."
+          },
+          {
+            "in": "header",
+            "name": "Accept",
+            "schema": {
+              "type": "string"
+            },
+            "description": "'application/statuslist+cwt' for the CWT; anything else gets the JWT."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The signed status list.",
+            "content": {
+              "application/statuslist+jwt": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/statuslist+cwt": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The list has not changed since the 'If-None-Match' / 'If-Modified-Since' of the request."
+          },
+          "404": {
+            "description": "Unknown country, doctype or list, or a list that is not published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identifier_list/{country}/{doctype}/{list_id}": {
+      "get": {
+        "summary": "Get Identifier List",
+        "operationId": "getIdentifierList",
+        "description": "The signed identifier list (a CWT) at the 'identifier_list.uri' /take returned. Answers carry 'ETag', 'Last-Modified', 'Cache-Control: no-cache' and 'Access-Control-Allow-Origin: *'. Not authenticated.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Country code of the list, as in the URI /take returned."
+          },
+          {
+            "in": "path",
+            "name": "doctype",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Document type of the list, as in the URI /take returned."
+          },
+          {
+            "in": "path",
+            "name": "list_id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "List id, as in the URI /take returned."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The signed identifier list.",
+            "content": {
+              "application/identifierlist+cwt": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "The list has not changed since the 'If-None-Match' / 'If-Modified-Since' of the request."
+          },
+          "404": {
+            "description": "Unknown country, doctype or list, or a list that is not published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

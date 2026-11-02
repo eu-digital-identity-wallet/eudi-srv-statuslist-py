@@ -9,7 +9,7 @@ services:
     # (STATUS_LIST_CONFIG_PATH default). Key and certificate mounts are
     # read-only and must match the countries.*_path values (private keys are
     # secrets). status_list_dir and backup_dir hold the lists: keep them on
-    # the host, where nginx serves status_list_dir under service_url. The
+    # persistent storage. The service serves the lists under service_url. The
     # container runs as UID 10001: chown -R 10001 the writable directories.
     volumes:
       - /etc/statuslist_config/config_statuslist.yaml:/etc/statuslist_config/config_statuslist.yaml:ro

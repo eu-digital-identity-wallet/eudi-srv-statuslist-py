@@ -107,8 +107,8 @@ docker build -t eudi-srv-statuslist-py .
 2. Put the signing keys and certificates where the `countries` paths point (`/etc/eudiw/...`); they are mounted read-only.
 3. Create the list, backup and log directories and give them to the container user:
    `sudo mkdir -p /var/opt/status_lists_dev /var/opt/status_list_backup_dev /var/log/status_lists_dev && sudo chown -R 10001 /var/opt/status_lists_dev /var/opt/status_list_backup_dev /var/log/status_lists_dev`.
-4. Serve `status_list_dir` with the web server in front of the service (nginx), under `service_url`:
-   the service writes the signed lists there, but does not serve them (see "Serving the lists" below).
+4. Set `service_url` to the public URL of the service (or of the web server in front of it): the signed
+   lists are fetched there (see "Serving the lists" below).
 
 The lists are kept on disk under a lock (`status_list_dir/state/`), so several containers or `flask run`
 processes on the same directories are safe; only one of them renews the lists at a time.
@@ -116,11 +116,15 @@ processes on the same directories are safe; only one of them renews the lists at
 ## 5. Serving the lists
 
 The URIs handed to the issuer are `<service_url>token_status_list/<CC>/<doctype>/<id>` and
-`<service_url>identifier_list/<CC>/<doctype>/<id>`. The web server answers them from `status_list_dir`:
+`<service_url>identifier_list/<CC>/<doctype>/<id>`. The service answers them from `status_list_dir`:
 the status list as a JWT (`application/statuslist+jwt`), or as a CWT when the request has
-`Accept: application/statuslist+cwt`, and the identifier list as a CWT. Nothing else under
-`status_list_dir` (`full_list.json`, `state/`) may be served. A sample nginx configuration, with the
-service on port 5002 and the default `status_list_dir` (adapt both):
+`Accept: application/statuslist+cwt`, and the identifier list as a CWT (`application/identifierlist+cwt`).
+These routes are not authenticated and send `ETag`, `Last-Modified`, `Cache-Control: no-cache` and
+`Access-Control-Allow-Origin: *`; nothing else under `status_list_dir` (`full_list.json`, `state/`) is served.
+
+A web server in front of the service may serve the lists itself instead. It must then answer the same way
+and never serve anything else under `status_list_dir`. A sample nginx configuration, with the service on
+port 5002 and the default `status_list_dir` (adapt both):
 
 ```nginx
 map $http_accept $status_list_file {
@@ -134,11 +138,13 @@ server {
         root /var/opt/status_lists_dev;
         types { application/statuslist+jwt jwt; application/statuslist+cwt cwt; }
         add_header Vary Accept;
+        add_header Access-Control-Allow-Origin *;
         try_files /token_status_list/$cc/$doctype/$id/$status_list_file =404;
     }
     location ~ "^/identifier_list/(?<cc>[A-Z0-9]+)/(?<doctype>[^/]+)/(?<id>[0-9a-f-]{36})$" {
         root /var/opt/status_lists_dev;
         types { application/identifierlist+cwt cwt; }
+        add_header Access-Control-Allow-Origin *;
         try_files /identifier_list/$cc/$doctype/$id/identifier_list.cwt =404;
     }
     # take / set / get / swagger

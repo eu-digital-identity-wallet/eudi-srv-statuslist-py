@@ -16,8 +16,8 @@ variables:
 
 # Public base URL of the lists: the URIs handed to the issuer are
 # <service_url>token_status_list/<country>/<doctype>/<id> and
-# <service_url>identifier_list/<country>/<doctype>/<id>. The web server in
-# front of the service (nginx) serves status_list_dir under these paths.
+# <service_url>identifier_list/<country>/<doctype>/<id>. The service serves
+# the signed lists at these URIs (see install.md, "Serving the lists").
 # A trailing "/" is added when missing.
 service_url: https://dev.issuer.eudiw.dev/
 

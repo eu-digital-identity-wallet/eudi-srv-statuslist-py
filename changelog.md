@@ -70,3 +70,8 @@ _21 Oct 2026_
 - Invalid numeric settings were only found at run time.
 - Deeply nested or malformed batch bodies answered 500 instead of 400.
 - 405 responses had no `Allow` header.
+
+## [Unreleased]
+
+### Added
+- `GET /token_status_list/<CC>/<doctype>/<id>` (JWT, or CWT by `Accept`) and `GET /identifier_list/<CC>/<doctype>/<id>` serve the signed lists; nginx is optional.

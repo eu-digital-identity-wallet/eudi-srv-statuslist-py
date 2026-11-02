@@ -20,15 +20,17 @@ import logging
 import re
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, Response, jsonify, request, send_from_directory
+from flask import Blueprint, Response, jsonify, request, send_file, send_from_directory
 
 from app import list_management
 from app.config import CONFIGURATION
 from app.list_management import REF_ERRORS, ConflictingRef, IndexOutOfRange, Ref, UnknownEntry, UnknownIdentifier
 from app.log_utils import safe
-from app.storage import LIST_KINDS, CorruptList, ListNotFound
+from app import storage
+from app.storage import IDENTIFIER_LIST, LIST_KINDS, TOKEN_LIST, CorruptList, ListNotFound
 
 token = Blueprint("token_status_list", __name__, url_prefix="/token_status_list")
+identifier = Blueprint("identifier_list", __name__, url_prefix="/identifier_list")
 logger = logging.getLogger(__name__)
 
 _LIST_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
@@ -40,6 +42,11 @@ _NUMBER = re.compile(r"0|[1-9]\d*", re.ASCII)
 
 #: Longest identifier list ``id`` accepted (the service hands out 32 characters).
 MAX_IDENTIFIER = 64
+
+#: Media types of the published lists (draft-ietf-oauth-status-list-12 section 8.1).
+STATUS_JWT_TYPE = "application/statuslist+jwt"
+STATUS_CWT_TYPE = "application/statuslist+cwt"
+IDENTIFIER_CWT_TYPE = "application/identifierlist+cwt"
 
 #: Largest request body, in bytes (``MAX_CONTENT_LENGTH``, 413 beyond it).
 MAX_BODY = 1024 * 1024
@@ -377,6 +384,45 @@ def set_batch():
         return _error(f"refs[{e.position}]: {message}", status)
 
     return jsonify({"revoked": revoked})
+
+
+def _published_list(kind: str, country: str, doctype: str, list_id: str, name: str, media_type: str):
+    """Answers one signed list from ``status_list_dir`` (404 when it is not published).
+
+    Only the published JWT / CWT files are served, never ``full_list.json``
+    or ``state/``. ``ETag`` / ``Last-Modified`` allow 304 answers; the list's
+    own ``ttl`` tells clients how long to cache it.
+    """
+    try:
+        validate_country(country)
+        validate_doctype(doctype)
+    except ValueError:
+        return _error("Unknown list", 404)
+    path = storage.list_dir(kind, country, doctype, list_id) / name
+    if not _LIST_ID.fullmatch(list_id) or not path.is_file():
+        return _error("Unknown list", 404)
+    response = send_file(path, mimetype=media_type, conditional=True)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
+
+@token.route("/<country>/<doctype>/<list_id>", methods=["GET"])
+def token_status_list(country, doctype, list_id):
+    """The status list: a JWT, or a CWT when ``Accept`` asks for it."""
+    if STATUS_CWT_TYPE in request.headers.get("Accept", ""):
+        name, media_type = storage.STATUS_CWT, STATUS_CWT_TYPE
+    else:
+        name, media_type = storage.STATUS_JWT, STATUS_JWT_TYPE
+    response = _published_list(TOKEN_LIST, country, doctype, list_id, name, media_type)
+    if isinstance(response, Response):
+        response.vary.add("Accept")
+    return response
+
+
+@identifier.route("/<country>/<doctype>/<list_id>", methods=["GET"])
+def identifier_list(country, doctype, list_id):
+    """The identifier list, a CWT."""
+    return _published_list(IDENTIFIER_LIST, country, doctype, list_id, storage.IDENTIFIER_CWT, IDENTIFIER_CWT_TYPE)
 
 
 @token.route("/static/swagger.json", methods=["GET"])

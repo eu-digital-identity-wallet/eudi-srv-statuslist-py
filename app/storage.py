@@ -25,7 +25,7 @@ Every list lives in two directories under ``status_list_dir``::
 ``state/<CC>/<doctype>/current.json`` names the list new indices are taken
 from, and ``state/<CC>/<doctype>/.lock`` serializes every change to the lists
 of that country and doctype, across threads and processes. Files are
-replaced atomically, so readers (the service itself, nginx) never see a
+replaced atomically, so readers (the list routes, a web server) never see a
 partly written file.
 """
 
@@ -53,8 +53,12 @@ LIST_KINDS = (TOKEN_LIST, IDENTIFIER_LIST)
 
 #: Name of the file holding a list's state (never served).
 FULL_LIST = "full_list.json"
+#: Names of the published (signed) lists.
+STATUS_JWT = "token_status_list.jwt"
+STATUS_CWT = "token_status_list.cwt"
+IDENTIFIER_CWT = "identifier_list.cwt"
 
-#: Mode of the published JWT / CWT files (nginx reads them as another user).
+#: Mode of the published JWT / CWT files (a web server may read them as another user).
 PUBLISHED_MODE = 0o644
 #: Mode of every other file: the list state, ``state/`` and the backups.
 PRIVATE_MODE = 0o600
@@ -145,7 +149,7 @@ def atomic_write(path: Path, data: bytes | str, mode: int = PRIVATE_MODE) -> Non
         path: File to replace.
         data: New content.
         mode: Permissions of the new file; :data:`PUBLISHED_MODE` only for
-            the files the web server serves.
+            the files served at the list URIs.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     raw = data.encode() if isinstance(data, str) else data
@@ -249,10 +253,10 @@ def save_entry(entry: dict[str, Any], *, publish: bool = True) -> None:
     identifier_cwt = identifier_list_cwt_format(entry["identifier_list"], country, entry["identifier_list_uri"])
 
     atomic_write(token_dir / FULL_LIST, full_list)
-    atomic_write(token_dir / "token_status_list.jwt", status_jwt, PUBLISHED_MODE)
-    atomic_write(token_dir / "token_status_list.cwt", status_cwt, PUBLISHED_MODE)
+    atomic_write(token_dir / STATUS_JWT, status_jwt, PUBLISHED_MODE)
+    atomic_write(token_dir / STATUS_CWT, status_cwt, PUBLISHED_MODE)
     atomic_write(identifier_dir / FULL_LIST, full_list)
-    atomic_write(identifier_dir / "identifier_list.cwt", identifier_cwt, PUBLISHED_MODE)
+    atomic_write(identifier_dir / IDENTIFIER_CWT, identifier_cwt, PUBLISHED_MODE)
 
 
 def current_list_id(country: str, doctype: str) -> str | None:

@@ -76,6 +76,7 @@ def create_app():
 
     # Register blueprints
     app.register_blueprint(status_list_endpoints.token)
+    app.register_blueprint(status_list_endpoints.identifier)
     app.register_blueprint(swagger_ui_blueprint, url_prefix=SWAGGER_URL)
 
     @app.errorhandler(HTTPException)

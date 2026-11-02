@@ -17,6 +17,7 @@ Refer to the [installation guide](./install.md) for setup instructions.
 Detailed API documentation and usage examples can be found in the [Swagger UI](https://dev.issuer.eudiw.dev/tslswagger/swagger).
 `/take`, `/set` and their `/batch` variants need the `X-Api-Key` header set to the configured `api_key`
 (401 `{"message": "Unauthorized access"}` otherwise). `/get` is not authenticated.
+The signed lists are served, unauthenticated, at the URIs `/take` returns (see [install.md](./install.md#5-serving-the-lists)).
 
 The service is configured through a YAML file: see [app/config_statuslist_example.yaml](app/config_statuslist_example.yaml).
 
