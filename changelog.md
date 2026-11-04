@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9]
+
+_24 Nov 2025_
+
+### Changed
+- Update to Token Status List draft 12
+
+### Fixed
+- JWT Header
+
 ## [0.10.0]
 
 _4 Nov 2026_
