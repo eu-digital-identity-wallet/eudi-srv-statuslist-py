@@ -73,6 +73,7 @@ _4 Nov 2026_
 - Learning credential, mVC and tax doctypes were not allowed.
 - `install.md` cloned the issuer backend repository and listed gunicorn.
 - `gitleaks/gitleaks.toml` failed to load.
+- `sonar.yml` analysed pull requests without coverage.
 - A wrong stored `num_allocated` made `/take` loop forever or start a list too early.
 - Corrupt or deeply nested `full_list.json` raised unhandled errors.
 - Renewal removed a list on its credentials' last valid day.
