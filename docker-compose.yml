@@ -1,0 +1,24 @@
+services:
+  status_list:
+    image: ghcr.io/eu-digital-identity-wallet/eudi-srv-statuslist-py:latest
+    # host:container; the container listens on 5000 (5002 on the host, so it
+    # runs next to the issuer backend on 5000).
+    ports:
+      - "5002:5000"
+    # The configuration is read from /etc/statuslist_config/config_statuslist.yaml
+    # (STATUS_LIST_CONFIG_PATH default). Key and certificate mounts are
+    # read-only and must match the countries.*_path values (private keys are
+    # secrets). status_list_dir and backup_dir hold the lists: keep them on
+    # persistent storage. The service serves the lists under service_url. The
+    # container runs as UID 10001: chown -R 10001 the writable directories.
+    volumes:
+      - /etc/statuslist_config/config_statuslist.yaml:/etc/statuslist_config/config_statuslist.yaml:ro
+      - /etc/eudiw/pid-issuer/cert/:/etc/eudiw/pid-issuer/cert/:ro
+      - /etc/eudiw/pid-issuer/privKey/:/etc/eudiw/pid-issuer/privKey/:ro
+      - /etc/eudiw/age_verification/:/etc/eudiw/age_verification/:ro
+      - /var/opt/status_lists:/var/opt/status_lists
+      - /var/opt/status_list_backup:/var/opt/status_list_backup
+      - /var/log/status_lists:/var/log/status_lists
+    # The lists are kept on disk under a lock: more containers on the same
+    # directories are safe.
+    restart: unless-stopped

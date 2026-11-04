@@ -1,0 +1,21 @@
+.git
+.github
+.semgrep
+gitleaks
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.venv
+venv
+*.egg-info
+.env
+.env.test
+*.md
+tests/
+.coverage
+coverage.xml
+# Key material and configuration must never be baked into images
+*.key
+*.pem
+*.der
+app/config_statuslist.yaml

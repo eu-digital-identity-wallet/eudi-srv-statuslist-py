@@ -1,14 +1,30 @@
-name: Secret Scanning - Gitleaks Caller
+# Secret scanning: Gitleaks scans the full git history with gitleaks/gitleaks.toml
+# and uploads gitleaks-report.json as a build artifact (non-blocking).
+# Runs on every push and on manual dispatch. Needs secrets: none.
+name: Secret Scanning - Gitleaks
 on:
   push:
-    branches-ignore:
-      - 'dependabot/**'
   workflow_dispatch:
-
+    
 jobs:
+  Secret-Scanning:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
 
-  Secret_Scanning_caller:
-      uses: eu-digital-identity-wallet/eudi-infra-ci/.github/workflows/secretscanning.yml@main
-      secrets:
-       DOJO_TOKEN: ${{ secrets.DOJO_TOKEN }}
-       DOJO_URL: ${{ secrets.DOJO_URL }}
+      - name: Run Gitleaks from container
+        run: |
+            docker create --name GL --entrypoint /bin/bash --interactive --volume ${{ github.workspace }}:/src zricethezav/gitleaks 
+            docker start GL
+            docker exec GL git config --global --add safe.directory '/src'
+            docker exec --user "$(id -u):$(id -g)" GL gitleaks detect --source=/src --verbose -c /src/gitleaks/gitleaks.toml --report-path /src/gitleaks-report.json
+        continue-on-error: true
+ 
+      - name: upload_artifacts   
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Gitleaks Artifact Upload
+          path:  ${{ github.workspace }}/gitleaks-report.json
