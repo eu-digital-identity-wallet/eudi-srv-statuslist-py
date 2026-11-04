@@ -16,16 +16,13 @@
 #
 ###############################################################################
 import base64
-import cbor2, jwt
-from datetime import datetime, timedelta
 import time
 
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
-from cryptography import x509
-from app.config_service import ConfService as cfgservice
+import cbor2
+import jwt
+
+from app.config import CONFIGURATION
+from app.status_list_format import cose_es256_sign, signer, validity
 
 
 def identifier_list_jwt_format(
@@ -41,35 +38,16 @@ def identifier_list_jwt_format(
         str: The encoded JWT
     """
 
-    # private_key = ec.generate_private_key(ec.SECP256R1())
-
-    with open(cfgservice.countries[country]["privKey"], "rb") as key_file:
-        private_key = serialization.load_pem_private_key(
-            key_file.read(),
-            password=(
-                cfgservice.countries[country]["privkey_passwd"]
-                if cfgservice.countries[country]["privkey_passwd"] is not None
-                else None
-            ),
-            backend=default_backend(),
-        )
-
-    with open(cfgservice.countries[country]["cert"], "rb") as file:
-        certificate = file.read()
-
-    cert = x509.load_der_x509_certificate(certificate)
-
-    _cert = cert.public_bytes(getattr(serialization.Encoding, "DER"))
+    private_key, _cert = signer(country)
 
     _cert_b64 = base64.b64encode(_cert).decode()
 
-    print("\ncert_b64", _cert_b64, flush=True)
-
+    issued_at = int(time.time())
     payload = {
-        "iss": cfgservice.service_url[:-1],
+        "iss": CONFIGURATION["service_url"].rstrip("/"),
         "sub": list_url,
-        "iat": int(time.time()),
-        # "exp": datetime.now() + timedelta(days=1),
+        "iat": issued_at,
+        **validity(issued_at),
         "identifier_list": identifier_list,
     }
 
@@ -93,43 +71,36 @@ def identifier_list_cwt_format(
         str: The encoded CWT
     """
 
-    # private_key = ec.generate_private_key(ec.SECP256R1())
+    private_key, _cert = signer(country)
 
-    with open(cfgservice.countries[country]["privKey"], "rb") as key_file:
-        private_key = serialization.load_pem_private_key(
-            key_file.read(),
-            password=(
-                cfgservice.countries[country]["privkey_passwd"]
-                if cfgservice.countries[country]["privkey_passwd"] is not None
-                else None
-            ),
-            backend=default_backend(),
-        )
-
-    with open(cfgservice.countries[country]["cert"], "rb") as file:
-        certificate = file.read()
-
-    cert = x509.load_der_x509_certificate(certificate)
-
-    _cert = cert.public_bytes(getattr(serialization.Encoding, "DER"))
-
-    unprotected = {4: b"1"}
+    # x5chain (33) identifies the key; no kid.
+    unprotected = {}
     protected = {1: -7, 16: "application/identifierlist+cwt", 33: _cert}
 
+    # Identifiers are byte strings in the CWT; the caller's dict is left as is.
+    encoded = {
+        **identifier_list,
+        "identifiers": {
+            key if isinstance(key, bytes) else str(key).encode("utf-8"): value
+            for key, value in identifier_list["identifiers"].items()
+        },
+    }
+
+    issued_at = int(time.time())
+    times = validity(issued_at)
     claims = {
-        1: cfgservice.service_url[:-1],
+        1: CONFIGURATION["service_url"].rstrip("/"),
         2: list_url,
-        6: int(time.time()),
-        # 4: int((datetime.now() + timedelta(days=1)).timestamp()),
-        65533: identifier_list,
+        4: times["exp"],
+        6: issued_at,
+        65534: times["ttl"],
+        65530: encoded,
     }
 
     cbor_header = cbor2.dumps(protected)
     cbor_claims = cbor2.dumps(claims)
 
-    message = cbor_header + cbor_claims
-
-    signature = private_key.sign(message, ec.ECDSA(hashes.SHA256()))
+    signature = cose_es256_sign(private_key, cbor_header, cbor_claims)
 
     cose_sign1 = [cbor_header, unprotected, cbor_claims, signature]
     tagged = cbor2.CBORTag(18, cose_sign1)
@@ -137,7 +108,6 @@ def identifier_list_cwt_format(
     """ try:
         private_key.public_key().verify(signature, message, ec.ECDSA(hashes.SHA256()))
         print("CWT signature is valid.")
-    except:
-        print("CWT signature is invalid.") """
+    except: """
 
     return cbor2.dumps(tagged)

@@ -1,0 +1,109 @@
+# Status List service configuration (example).
+#
+# The service reads /etc/statuslist_config/config_statuslist.yaml, or the file
+# named by the STATUS_LIST_CONFIG_PATH environment variable. Keys marked
+# "(default ...)" may be left out. Keep the real file out of git: it holds
+# secrets (# SECRET).
+
+# Reusable values: any string below may use ${name}. A variable may use the
+# variables defined before it.
+variables:
+  keys_dir: /etc/eudiw/pid-issuer
+  av_keys_dir: /etc/eudiw/age_verification
+  # FC (FormEU), EU and LU lists are signed with the LU document signer.
+  lu_signer_key: ${keys_dir}/privKey/PID-DS-0001_LU.pem
+  lu_signer_cert: ${keys_dir}/cert/PID-DS-0001_LU_cert.der
+
+# Public base URL of the lists: the URIs handed to the issuer are
+# <service_url>token_status_list/<country>/<doctype>/<id> and
+# <service_url>identifier_list/<country>/<doctype>/<id>. The service serves
+# the signed lists at these URIs (see install.md, "Serving the lists").
+# A trailing "/" is added when missing.
+service_url: https://issuer.eudiw.dev/
+
+# API key the issuer sends as X-Api-Key to /take and /set. At least 32
+# random characters; the service refuses to start otherwise.
+api_key: replace-with-a-random-value-of-at-least-32-characters # SECRET
+
+# Flask debug mode (default false). Never enable it on a reachable host.
+debug: false
+
+# Number of entries of each token status list (default 10000, i.e. 1250 bytes:
+# 1 bit per entry). A full list is followed by a new one.
+token_status_list_size: 10000
+
+# Most indices one /take/batch request may take, and most entries one
+# /set/batch request may revoke (default 1000). Larger batches get 413.
+batch_max_size: 1000
+
+# Time to live of the signed lists (JWT "ttl", CWT claim 65534), in seconds
+# (default 3600): how long a relying party may cache a list before fetching it again.
+status_list_ttl: 3600
+
+# Validity of the signed lists (JWT "exp", CWT claim 4), in seconds from
+# signing (default 86400). Must be more than the longest time between two
+# renewal hours plus one hour (13 hours with the default [0, 12]), so a list
+# is re-signed before it expires. Relying parties reject an expired list.
+status_list_validity: 86400
+
+# Furthest expiry_date /take accepts, in days from today (default 3650).
+# Expiry dates are UTC days; a list is kept until the day after its last one.
+max_expiry_days: 3650
+
+# Where the lists are written (default /var/opt/status_lists) and where
+# every renewal copies the previous ones (default /var/opt/status_list_backup).
+# Both hold state: keep them on persistent storage.
+status_list_dir: /var/opt/status_lists
+backup_dir: /var/opt/status_list_backup
+
+renewal:
+  # Local hours at which the lists are re-signed and expired lists removed
+  # (default [0, 12]). Distinct integers from 0 to 23.
+  hours: [0, 12]
+
+logging:
+  # Log file, rotated at midnight (default /var/log/status_lists/status_lists.log).
+  path: /var/log/status_lists/status_lists.log
+  # DEBUG, INFO, WARNING or ERROR (default INFO).
+  log_level: INFO
+  # Rotated files kept (default 7).
+  backup_count: 7
+
+# Countries the service keeps lists for, each with the key that signs them:
+# a PEM private key and its DER (or PEM) certificate, sent as x5c.
+countries:
+  FC:
+    private_key_path: ${lu_signer_key}
+    # private_key_password: "" # SECRET, when the key is encrypted
+    certificate_path: ${lu_signer_cert}
+  EU:
+    private_key_path: ${lu_signer_key}
+    certificate_path: ${lu_signer_cert}
+  LU:
+    private_key_path: ${lu_signer_key}
+    certificate_path: ${lu_signer_cert}
+  PT:
+    private_key_path: ${keys_dir}/privKey/PID-DS-0001_PT.pem
+    certificate_path: ${keys_dir}/cert/PID-DS-0001_PT_cert.der
+  EE:
+    private_key_path: ${keys_dir}/privKey/PID-DS-0001_EE.pem
+    certificate_path: ${keys_dir}/cert/PID-DS-0001_EE_cert.der
+  CZ:
+    private_key_path: ${keys_dir}/privKey/PID-DS-0001_CZ.pem
+    certificate_path: ${keys_dir}/cert/PID-DS-0001_CZ_cert.der
+  NL:
+    private_key_path: ${keys_dir}/privKey/PID-DS-0001_NL.pem
+    certificate_path: ${keys_dir}/cert/PID-DS-0001_NL_cert.der
+  AV:
+    private_key_path: ${av_keys_dir}/privKey/AgeVerificationDS-001.pem
+    certificate_path: ${av_keys_dir}/cert/AgeVerificationDS-001_cert.der
+  AV2:
+    private_key_path: ${av_keys_dir}/privKey/bak/AgeVerificationDS-001.pem
+    certificate_path: ${av_keys_dir}/cert/bak/AgeVerificationDS-001_cert.der
+
+# Document types lists may be taken for (default: the list below).
+# allowed_doctypes:
+#   - eu.europa.ec.eudi.pid.1
+#   - urn:eudi:pid:1
+#   - org.iso.18013.5.1.mDL
+#   - ...

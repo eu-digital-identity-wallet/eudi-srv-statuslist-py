@@ -15,155 +15,146 @@
 # limitations under the License.
 #
 ###############################################################################
-import json
+"""Periodic renewal of the lists: re-signing, backups and expiry."""
+
+from __future__ import annotations
+
+import logging
 import shutil
-import sys
 import threading
 import time
-from datetime import datetime, timedelta
-import os
-from app.config_service import ConfService as cfgservice
-from app.status_list_format import cwt_format, jwt_format
-from app.identifier_list_format import (
-    identifier_list_cwt_format,
-    identifier_list_jwt_format,
-)
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
 
-# current_dir = os.path.dirname(os.path.abspath(__file__))
-# sys.path.append(os.path.join(current_dir, '..', 'token-status-list-py'))
-from token_status_list import IssuerStatusList
+from app import storage
+from app.config import CONFIGURATION
+from app.storage import IDENTIFIER_LIST, TOKEN_LIST, CorruptList, ListNotFound
+
+logger = logging.getLogger(__name__)
 
 
-def renew_lists():
+def _backup(entry_dirs: list[Path], timestamp: str) -> None:
+    """Copies the files of one list to ``backup_dir/<timestamp>/`` (same relative paths)."""
+    base = storage.base_dir()
+    for directory in entry_dirs:
+        if not directory.is_dir():
+            continue
+        target = Path(CONFIGURATION["backup_dir"]) / timestamp / directory.relative_to(base)
+        for f in directory.iterdir():
+            if f.is_file() and not f.name.startswith("."):
+                storage.atomic_write(target / f.name, f.read_bytes())
+
+
+def _renew_one(country: str, doctype: str, list_id: str, timestamp: str, report: dict[str, list]) -> None:
+    name = f"{country}/{doctype}/{list_id}"
+    dirs = [storage.list_dir(kind, country, doctype, list_id) for kind in (TOKEN_LIST, IDENTIFIER_LIST)]
+    with storage.country_doctype_lock(country, doctype):
+        try:
+            entry = storage.load_entry(country, doctype, list_id)
+        except ListNotFound:
+            return  # removed meanwhile
+        except CorruptList:
+            logger.exception("Cannot renew %s: its full_list.json is unreadable", name)
+            report["corrupt"].append(name)
+            return
+        expires = entry.get("expires")
+        # Credentials are valid until the end of their (UTC) expiry day.
+        if expires and datetime.strptime(expires, "%Y-%m-%d").date() < datetime.now(timezone.utc).date():
+            logger.info("Removing %s: expired on %s", name, expires)
+            for directory in dirs:
+                shutil.rmtree(directory, ignore_errors=True)
+            if storage.current_list_id(country, doctype) == list_id:
+                storage.set_current_list_id(country, doctype, None)
+            report["removed"].append(name)
+            return
+        _backup(dirs, timestamp)
+        storage.save_entry(entry)
+        report["renewed"].append(name)
+
+
+def renew_lists() -> dict[str, list[str]]:
+    """Re-signs every list, backs it up first and removes expired lists.
+
+    Each list is rewritten from its ``full_list.json`` under its lock, so a
+    damaged JWT / CWT file is repaired. A list that fails is logged and
+    skipped; the others are still renewed.
+
+    Returns:
+        ``renewed``, ``removed``, ``corrupt`` (unreadable ``full_list.json``)
+        and ``failed`` lists, as ``CC/doctype/id``.
     """
-    Renews all the status lists that haven't expired
-    """
-    base_dir = cfgservice.status_list_dir
-    backup_dir = cfgservice.backup_dir
+    report: dict[str, list[str]] = {"renewed": [], "removed": [], "corrupt": [], "failed": []}
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    for path in sorted((storage.base_dir() / TOKEN_LIST).glob("*/*/*/full_list.json")):
+        list_id, doctype, country = path.parent.name, path.parent.parent.name, path.parent.parent.parent.name
+        try:
+            _renew_one(country, doctype, list_id, timestamp, report)
+        except Exception:
+            logger.exception("Cannot renew %s/%s/%s", country, doctype, list_id)
+            report["failed"].append(f"{country}/{doctype}/{list_id}")
+    logger.info(
+        "Renewal: %d renewed, %d removed, %d corrupt, %d failed",
+        *(len(report[k]) for k in ("renewed", "removed", "corrupt", "failed")),
+    )
+    return report
 
-    # Traverse subdirectories
-    for root, _, files in os.walk(base_dir):
-        for file in files:
-            if file == "full_list.json":
-                file_path = os.path.join(root, file)
-                dir_path = root
 
-                try:
-                    with open(file_path, "r") as json_file:
-                        temp_list = json.load(json_file)
-                except Exception as e:
-                    cfgservice.app_logger.info(
-                        f"An error occurred while processing the file: {file_path}",
-                        exc_info=True,
-                    )
-                    continue
+def renewal_pass() -> dict[str, Any] | None:
+    """Runs :func:`renew_lists` unless another process is renewing.
 
-                if (
-                    "status_list_uri" not in temp_list
-                    or "identifier_list_uri" not in temp_list
-                ):
-                    cfgservice.app_logger.info(f"Uris don't exist: {file_path}")
-                    continue
+    Returns:
+        The report, or ``None`` when the pass was skipped.
+    """
+    with storage.file_lock(storage.base_dir() / "state" / "renewal.lock", blocking=False) as held:
+        if not held:
+            logger.info("Another process is renewing the lists; skipping this pass")
+            return None
+        return renew_lists()
 
-                expires_date = datetime.strptime(temp_list["expires"], "%Y-%m-%d")
 
-                if expires_date < datetime.now():
-                    cfgservice.app_logger.info(f"Removing {dir_path} as it is expired.")
-                    shutil.rmtree(dir_path)
-                    continue
+def next_renewal(now: datetime) -> datetime:
+    """Returns the next renewal time after ``now``.
 
-                relative_path = os.path.relpath(root, base_dir)
-                copy_dir = os.path.join(backup_dir, timestamp, relative_path)
-                os.makedirs(copy_dir, exist_ok=True)
+    Renewals run at the hours listed in ``renewal.hours`` (local time).
 
-                if "token_status_list" in dir_path:
-                    list_type = "token_status_list"
+    Args:
+        now: Current time.
 
-                    shutil.copy(dir_path + "/token_status_list.jwt", copy_dir)
-                    shutil.copy(dir_path + "/token_status_list.cwt", copy_dir)
-                    shutil.copy(dir_path + "/full_list.json", copy_dir)
-
-                    temp_list["token_status_list"] = IssuerStatusList.load(
-                        temp_list["token_status_list"]
-                    )
-                    # temp_list[list_type] = temp_list[list_type].dump()
-
-                    jwt_file_path = os.path.join(dir_path, "token_status_list.jwt")
-                    with open(jwt_file_path, "w") as f:
-                        f.write(
-                            jwt_format(
-                                temp_list["token_status_list"],
-                                temp_list["country"],
-                                temp_list["status_list_uri"],
-                            )
-                        )
-
-                    cwt_file_path = os.path.join(dir_path, "token_status_list.cwt")
-                    with open(cwt_file_path, "wb") as f:
-                        f.write(
-                            cwt_format(
-                                temp_list["token_status_list"],
-                                temp_list["country"],
-                                temp_list["status_list_uri"],
-                            )
-                        )
-
-                elif "identifier_list" in dir_path:
-                    list_type = "identifier_list"
-
-                    shutil.copy(dir_path + "/identifier_list.jwt", copy_dir)
-                    shutil.copy(dir_path + "/identifier_list.cwt", copy_dir)
-                    shutil.copy(dir_path + "/full_list.json", copy_dir)
-
-                    jwt_file_path = os.path.join(dir_path, "identifier_list.jwt")
-                    with open(jwt_file_path, "w") as f:
-                        f.write(
-                            identifier_list_jwt_format(
-                                temp_list["identifier_list"],
-                                temp_list["country"],
-                                temp_list["identifier_list_uri"],
-                            )
-                        )
-
-                    cwt_file_path = os.path.join(dir_path, "identifier_list.cwt")
-                    with open(cwt_file_path, "wb") as f:
-                        f.write(
-                            identifier_list_cwt_format(
-                                temp_list["identifier_list"],
-                                temp_list["country"],
-                                temp_list["identifier_list_uri"],
-                            )
-                        )
+    Returns:
+        The next renewal time, today or tomorrow.
+    """
+    hours = sorted({int(h) for h in CONFIGURATION["renewal"]["hours"]})
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    for day in (0, 1):
+        for hour in hours:
+            candidate = midnight + timedelta(days=day, hours=hour)
+            if candidate > now:
+                return candidate
+    raise RuntimeError("renewal.hours must list at least one hour (0-23)")
 
 
 def daily_renewal():
+    """Renews the lists at every ``renewal.hours``, forever: no error stops the loop."""
     while True:
-        now = datetime.now()
+        try:
+            now = datetime.now()
+            next_execution = next_renewal(now)
 
-        if now.hour < 12:
-            next_execution = now.replace(hour=12, minute=0, second=0, microsecond=0)
-        else:
-            next_execution = (now + timedelta(days=1)).replace(
-                hour=0, minute=0, second=0, microsecond=0
+            seconds_until_execution = (next_execution - now).total_seconds()
+
+            logger.info(
+                f"Renewing in {int(seconds_until_execution // 3600):02}:{int((seconds_until_execution % 3600) // 60):02}:{round(seconds_until_execution % 60):02}"
             )
 
-        # next_execution = now + timedelta(minutes=1)
+            time.sleep(seconds_until_execution)
 
-        seconds_until_execution = (next_execution - now).total_seconds()
+            logger.info("Renewing Revocation Lists")
 
-        cfgservice.app_logger.info(
-            f"Renewing in {int(seconds_until_execution // 3600):02}:{int((seconds_until_execution % 3600) // 60):02}:{round(seconds_until_execution % 60):02}"
-        )
-
-        time.sleep(seconds_until_execution)
-
-        cfgservice.app_logger.info("Renewing Revocation Lists")
-
-        try:
-            renew_lists()
-        except Exception as e:
-            print(f"Error: {e}")
+            renewal_pass()
+        except Exception:
+            logger.exception("List renewal failed")
+            time.sleep(60)
 
 
 def start_renewal_thread():

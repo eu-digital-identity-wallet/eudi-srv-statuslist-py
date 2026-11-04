@@ -15,11 +15,24 @@ Refer to the [installation guide](./install.md) for setup instructions.
 
 ## Usage
 Detailed API documentation and usage examples can be found in the [Swagger UI](https://dev.issuer.eudiw.dev/tslswagger/swagger).
-X-API-Key = test
+`/take`, `/set` and their `/batch` variants need the `X-Api-Key` header set to the configured `api_key`
+(401 `{"message": "Unauthorized access"}` otherwise). `/get` is not authenticated.
+The signed lists are served, unauthenticated, at the URIs `/take` returns (see [install.md](./install.md#5-serving-the-lists)).
+
+The service is configured through a YAML file: see [app/config_statuslist_example.yaml](app/config_statuslist_example.yaml).
 
 ## Features
-- Supports Attestation Status List (ASL) [draft-ietf-oauth-status-list-02](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-status-list-02)
+- Supports Attestation Status List (ASL) [draft-ietf-oauth-status-list-12](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-status-list-12)
 - Supports Attestation Revocation List (ARL) [ ISO/IEC CD 18013-5 second edition ]
+
+## Tests
+
+```shell
+pip install -r requirements-dev.txt
+env $(grep -v '^#' .env.test | xargs) pytest --cov=app --cov-config=pyproject.toml
+```
+
+CI (`.github/workflows/sonar.yml`) runs the same command and fails below 80% coverage.
 
 ## :heavy_exclamation_mark: Disclaimer
 

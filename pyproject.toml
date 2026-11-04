@@ -1,0 +1,8 @@
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+# CI fails when total coverage drops below this.
+fail_under = 80

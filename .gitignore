@@ -164,3 +164,6 @@ cython_debug/
 #lib
 token-status-list-py
 config_secrets.py
+
+# Local working notes: plans and open issues
+plans/
