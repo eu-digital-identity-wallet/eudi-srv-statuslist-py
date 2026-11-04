@@ -50,11 +50,11 @@ status_list_validity: 86400
 # Expiry dates are UTC days; a list is kept until the day after its last one.
 max_expiry_days: 3650
 
-# Where the lists are written (default /var/opt/status_lists_dev) and where
-# every renewal copies the previous ones (default /var/opt/status_list_backup_dev).
+# Where the lists are written (default /var/opt/status_lists) and where
+# every renewal copies the previous ones (default /var/opt/status_list_backup).
 # Both hold state: keep them on persistent storage.
-status_list_dir: /var/opt/status_lists_dev
-backup_dir: /var/opt/status_list_backup_dev
+status_list_dir: /var/opt/status_lists
+backup_dir: /var/opt/status_list_backup
 
 renewal:
   # Local hours at which the lists are re-signed and expired lists removed
@@ -62,8 +62,8 @@ renewal:
   hours: [0, 12]
 
 logging:
-  # Log file, rotated at midnight (default /var/log/status_lists_dev/status_lists.log).
-  path: /var/log/status_lists_dev/status_lists.log
+  # Log file, rotated at midnight (default /var/log/status_lists/status_lists.log).
+  path: /var/log/status_lists/status_lists.log
   # DEBUG, INFO, WARNING or ERROR (default INFO).
   log_level: INFO
   # Rotated files kept (default 7).

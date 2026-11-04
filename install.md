@@ -106,7 +106,7 @@ docker build -t eudi-srv-statuslist-py .
    Inside the container, the default `status_list_dir`, `backup_dir` and `logging.path` are the mounted directories.
 2. Put the signing keys and certificates where the `countries` paths point (`/etc/eudiw/...`); they are mounted read-only.
 3. Create the list, backup and log directories and give them to the container user:
-   `sudo mkdir -p /var/opt/status_lists_dev /var/opt/status_list_backup_dev /var/log/status_lists_dev && sudo chown -R 10001 /var/opt/status_lists_dev /var/opt/status_list_backup_dev /var/log/status_lists_dev`.
+   `sudo mkdir -p /var/opt/status_lists /var/opt/status_list_backup /var/log/status_lists && sudo chown -R 10001 /var/opt/status_lists /var/opt/status_list_backup /var/log/status_lists`.
 4. Set `service_url` to the public URL of the service (or of the web server in front of it): the signed
    lists are fetched there (see "Serving the lists" below).
 
@@ -135,14 +135,14 @@ map $http_accept $status_list_file {
 server {
     # ...
     location ~ "^/token_status_list/(?<cc>[A-Z0-9]+)/(?<doctype>[^/]+)/(?<id>[0-9a-f-]{36})$" {
-        root /var/opt/status_lists_dev;
+        root /var/opt/status_lists;
         types { application/statuslist+jwt jwt; application/statuslist+cwt cwt; }
         add_header Vary Accept;
         add_header Access-Control-Allow-Origin *;
         try_files /token_status_list/$cc/$doctype/$id/$status_list_file =404;
     }
     location ~ "^/identifier_list/(?<cc>[A-Z0-9]+)/(?<doctype>[^/]+)/(?<id>[0-9a-f-]{36})$" {
-        root /var/opt/status_lists_dev;
+        root /var/opt/status_lists;
         types { application/identifierlist+cwt cwt; }
         add_header Access-Control-Allow-Origin *;
         try_files /identifier_list/$cc/$doctype/$id/identifier_list.cwt =404;

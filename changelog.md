@@ -1,8 +1,8 @@
 # Changelog
 
-## [0.1.0]
+## [0.10.0]
 
-_21 Oct 2026_
+_4 Nov 2026_
 
 ### Added
 - `.github/workflows/`: `semgrep.yml`, `pipeline.yml` (image on `main`, `branch-*` and `v*` tags), `README.md`, and `.github/CODEOWNERS`.
@@ -19,6 +19,7 @@ _21 Oct 2026_
 - `status_list_validity` (default 86400 s): signed lists carry `exp` and `ttl` (draft-12 section 13.7).
 - `max_expiry_days` (default 3650) bounds `expiry_date`.
 - `logging.path`, `logging.log_level` and `logging.backup_count`.
+- `GET /token_status_list/<CC>/<doctype>/<id>` (JWT, or CWT by `Accept`) and `GET /identifier_list/<CC>/<doctype>/<id>` serve the signed lists; nginx is optional.
 
 ### Changed
 - `gitleaks.yml`, `dependencycheck.yml` and `sonar.yml` run the scans themselves instead of the `eudi-infra-ci` reusable workflows.
@@ -41,8 +42,7 @@ _21 Oct 2026_
 - CWT lists no longer carry the fixed `kid` `"1"` (draft-12 section 11.3).
 - `swagger.json` documents every status code and constrains the parameters.
 - `token_status_list_size` is documented as a number of entries.
-- `flask-cors` removed: only the issuer calls the service.
-- The log file defaults to `/var/log/status_lists_dev/` instead of world-writable `/tmp`.
+- The log file defaults to `/var/log/status_lists/` instead of world-writable `/tmp/status_lists`.
 - Only the published lists are world-readable; other files are `0600`.
 - Request bodies are limited to 1 MiB on every endpoint, and `X-Api-Key` is checked before the body is read.
 - A failed `X-Api-Key` check is logged on every endpoint.
@@ -70,8 +70,3 @@ _21 Oct 2026_
 - Invalid numeric settings were only found at run time.
 - Deeply nested or malformed batch bodies answered 500 instead of 400.
 - 405 responses had no `Allow` header.
-
-## [Unreleased]
-
-### Added
-- `GET /token_status_list/<CC>/<doctype>/<id>` (JWT, or CWT by `Accept`) and `GET /identifier_list/<CC>/<doctype>/<id>` serve the signed lists; nginx is optional.

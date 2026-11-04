@@ -30,8 +30,8 @@ COPY app/ ./app/
 # it: chown -R 10001 <dir>). It owns the default list, backup and log
 # directories (status_list_dir, backup_dir, logging.path).
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin statuslist \
- && mkdir -p /etc/statuslist_config /var/opt/status_lists_dev /var/opt/status_list_backup_dev /var/log/status_lists_dev \
- && chown -R statuslist:statuslist /var/opt/status_lists_dev /var/opt/status_list_backup_dev /var/log/status_lists_dev
+ && mkdir -p /etc/statuslist_config /var/opt/status_lists /var/opt/status_list_backup /var/log/status_lists \
+ && chown -R statuslist:statuslist /var/opt/status_lists /var/opt/status_list_backup /var/log/status_lists
 
 USER statuslist
 
