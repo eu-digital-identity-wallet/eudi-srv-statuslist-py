@@ -2,8 +2,7 @@
 # Runs on every push (except Dependabot branches), pull request and manual dispatch.
 # Pull requests run on pull_request_target, so forks get the secrets: the job checks
 # out and tests the target branch, never the pull request's code.
-# Pushes to main in eu-digital-identity-wallet also send the report to DefectDojo.
-# Needs secrets: SONAR_TOKEN, DOJO_TOKEN and DOJO_URL.
+# Needs secret: SONAR_TOKEN.
 name: SAST - SonarCloud
 on:
   push:
@@ -82,38 +81,3 @@ jobs:
                 -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
                 -Dsonar.pullrequest.base=${{ github.event.pull_request.base.ref }}
                 -Dsonar.pullrequest.branch=${{ github.event.pull_request.head.ref }}
-
-      - name: Set up Node
-        if: (github.repository_owner == 'eu-digital-identity-wallet' && github.ref_name == 'main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch'))
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-      - name: Send report to DefectDojo
-        if: (github.repository_owner == 'eu-digital-identity-wallet' && github.ref_name == 'main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch'))
-        env:
-          DOJO_TOKEN: ${{ secrets.DOJO_TOKEN }}
-          DOJO_URL: ${{ secrets.DOJO_URL }}
-          REPOSITORY: ${{ github.repository }}
-          ORGANIZATION: ${{ github.repository_owner }}
-        run: |
-          npm install -g sonar-report@3.0.10
-          sonar-report \
-            --sonarurl="https://sonarcloud.io" \
-            --sonarorganization="$ORGANIZATION" \
-            --branch=main \
-            --sonartoken="$SONAR_TOKEN" \
-            --output sonarreport.html \
-            --application="$PROJECTKEY" \
-            --sonarcomponent="$PROJECTKEY"
-          curl -fsS -X POST "$DOJO_URL/api/v2/reimport-scan/" \
-            -H "Authorization: Token $DOJO_TOKEN" \
-            -F "active=true" \
-            -F "scan_type=SonarQube Scan detailed" \
-            -F "minimum_severity=Info" \
-            -F "skip_duplicates=true" \
-            -F "close_old_findings=true" \
-            -F "file=@sonarreport.html" \
-            -F "scan_date=$(TZ='EET' date '+%Y-%m-%d')" \
-            -F "auto_create_context=True" \
-            -F "product_name=$REPOSITORY-main" \
-            -F "engagement_name=Static Application Security Testing - $REPOSITORY-main"
