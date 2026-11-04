@@ -51,7 +51,7 @@ DEFAULT_CONFIG_PATH = "/etc/statuslist_config/config_statuslist.yaml"
 
 #: Values used for the keys the configuration file leaves out.
 DEFAULTS: dict[str, Any] = {
-    "service_url": "https://dev.issuer.eudiw.dev/",
+    "service_url": "https://issuer.eudiw.dev/",
     "debug": False,
     "token_status_list_size": 10000,
     "batch_max_size": 1000,
