@@ -61,7 +61,7 @@ class TestApplyDefaults:
         assert config["debug"] is False
         assert config["token_status_list_size"] == 10000
         assert config["renewal"] == {"hours": [0, 12]}
-        assert config["service_url"] == "https://dev.issuer.eudiw.dev/"
+        assert config["service_url"] == "https://issuer.eudiw.dev/"
 
     def test_sections_are_merged_and_url_gets_a_slash(self):
         config = apply_defaults({"service_url": "http://x", "logging": {"log_level": "DEBUG"}})
